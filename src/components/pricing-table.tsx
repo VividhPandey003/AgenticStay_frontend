@@ -1,173 +1,245 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { MoreVertical, CheckCircle, XCircle, Pencil, Info } from "lucide-react";
-import type { DateRange } from "react-day-picker";
-import { addDays, format, isSameDay } from "date-fns";
-import { getMockPredictedPrice, getMockPredictionReason, mockHolidays } from "@/components/data/mock-pricing";
+import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
+import type { DateRange } from "react-day-picker";
+import { motion } from "framer-motion"; // Added for modal animation
+
+interface PricingData {
+  avgOfSimilarHotelsPricing: number;
+  current_price: number;
+  date: string;
+  description: string;
+  logic: string;
+  optimized_price: number;
+  room_type: string;
+  selected_ancillaries: string[];
+  short_description: string;
+}
 
 interface PricingTableProps {
   roomType: string;
   dateRange: DateRange | undefined;
 }
 
-// Mock data for room pricing
-const roomPricing = {
-  standard: { basePrice: 120, weekend: 150, holiday: 180 },
-  deluxe: { basePrice: 180, weekend: 220, holiday: 260 },
-  suite: { basePrice: 250, weekend: 300, holiday: 350 },
-  presidential: { basePrice: 450, weekend: 550, holiday: 650 },
-};
-
 export function PricingTable({ roomType, dateRange }: PricingTableProps) {
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [customPrice, setCustomPrice] = useState("");
+  const [pricingData, setPricingData] = useState<PricingData[] | null>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedPredictedPrice, setSelectedPredictedPrice] = useState<number | null>(null);
-  const [selectedCurrentPrice, setSelectedCurrentPrice] = useState<number | null>(null);
+  const [customPrice, setCustomPrice] = useState("");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [priceStatus, setPriceStatus] = useState<Record<number, "accepted" | "rejected" | null>>({});
 
-  if (!dateRange?.from) {
-    return <div className="text-center py-4">Please select a date range</div>;
+
+
+  useEffect(() => {
+    async function fetchPricingData() {
+      if (!dateRange?.from || !dateRange?.to) return;
+
+      try {
+        const startDate = new Date(dateRange.from);
+        const endDate = new Date(dateRange.to);
+        const allDates = [];
+
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          allDates.push(format(new Date(d), "yyyy-MM-dd"));
+        }
+
+        const responses = await Promise.all(
+          allDates.map(async (date) => {
+            try {
+              const response = await fetch(
+                `http://127.0.0.1:5000/get_prediction?date=${date}&room_type=${roomType}`
+              );
+
+              if (!response.ok) {
+                if (response.status === 404) {
+                  console.warn(`No data found for ${date}, skipping...`);
+                  return null
+                }
+                throw new Error(`HTTP error! Status: ${response.status}`);
+              }
+
+              return response.json();
+            } catch (error) {
+              console.error(`Error fetching data for ${date}:`, error);
+              return null; // Ignore failed requests
+            }
+          })
+        );
+
+        setPricingData(responses.filter((data) => data !== null));
+        console.log(responses.filter((data) => data !== null))
+      } catch (error) {
+        console.error("Error fetching pricing data:", error);
+      }
+    }
+
+    fetchPricingData();
+  }, [dateRange, roomType]);
+
+
+  if (!pricingData) {
+    return <div className="text-center py-4 text-gray-600">Loading pricing data...</div>;
   }
 
-  const dates = [];
-  let currentDate = dateRange.from;
-  while (currentDate <= (dateRange.to || dateRange.from)) {
-    dates.push(new Date(currentDate));
-    currentDate = addDays(currentDate, 1);
-  }
-
-  const getPriceForDate = (date: Date, type: string) => {
-    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-    const isHoliday = mockHolidays.some((holiday) => isSameDay(holiday, date));
-    if (!roomPricing[type as keyof typeof roomPricing]) return null;
-    return isHoliday
-      ? roomPricing[type as keyof typeof roomPricing].holiday
-      : isWeekend
-        ? roomPricing[type as keyof typeof roomPricing].weekend
-        : roomPricing[type as keyof typeof roomPricing].basePrice;
-  };
-
-  const handleOpenModal = (date: Date, predictedPrice: number, currentPrice: number) => {
-    setSelectedDate(date);
-    setSelectedPredictedPrice(predictedPrice);
-    setSelectedCurrentPrice(currentPrice);
-    setCustomPrice(""); // Reset input field
+  const handleOpenModal = (index) => {
+    setCustomPrice("");
+    setCurrentIndex(index);
     setModalOpen(true);
   };
 
-  const handleAcceptPrice = () => {
-    console.log(`✅ Accepted: Updating ${selectedDate} to Predicted Price`);
-    setModalOpen(false);
-  };
-
-  const handleRejectPrice = () => {
-    console.log(`❌ Rejected: Keeping ${selectedDate} as is`);
-    setModalOpen(false);
-  };
-
-  const handleCustomPrice = () => {
-    console.log(`✏️ Custom Price for ${selectedDate}: $${customPrice}`);
-    setModalOpen(false);
-  };
-
   return (
-    <div className="rounded-md border">
+    <div className="rounded-md border bg-white shadow">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[100px]">Date</TableHead>
-            <TableHead>Day</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Room Type</TableHead>
             <TableHead className="text-right">Current Price</TableHead>
-            <TableHead className="text-right">Predicted Price</TableHead>
+            <TableHead className="text-right">Optimized Price</TableHead>
             <TableHead className="text-right">Difference</TableHead>
+            <TableHead>Ancillaries</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {dates.map((date) => {
-            const actualPrice = getPriceForDate(date, roomType);
-            const predictedPrice = getMockPredictedPrice(date, roomType);
-            const priceDiff = predictedPrice - actualPrice;
+          {pricingData.map((data, index) => (
+            <TableRow key={index}>
+              <TableCell className="font-medium">{data.date ? format(new Date(data.date), "MMM dd, yyyy") : "N/A"}</TableCell>
+              <TableCell>{data.room_type.replace(/_/g, " ")}</TableCell>
+              <TableCell className="text-right">₹{data.current_price}</TableCell>
+              <TableCell className="text-right font-semibold">₹{data.optimized_price}</TableCell>
+              <TableCell
+                className={`text-right font-semibold ${data.optimized_price > data.current_price ? "text-green-600" : "text-red-600"
+                  }`}
+              >
+                {data.optimized_price - data.current_price > 0
+                  ? `+₹${data.optimized_price - data.current_price}`
+                  : `₹${data.optimized_price - data.current_price}`}
+              </TableCell>
 
-            return (
-              <TableRow key={date.toISOString()}>
-                <TableCell className="font-medium">{format(date, "MMM dd, yyyy")}</TableCell>
-                <TableCell>{format(date, "EEEE")}</TableCell>
-                <TableCell className="text-right">${actualPrice}</TableCell>
-                <TableCell className="text-right font-semibold">${predictedPrice}</TableCell>
-                <TableCell
-                  className={`text-right font-semibold ${priceDiff > 0 ? "text-red-600" : "text-green-600"}`}
-                >
-                  {priceDiff > 0 ? `+${priceDiff}` : priceDiff}
-                </TableCell>
-                <TableCell className="text-right">
-                  <button
-                    className="p-2 rounded-md hover:bg-gray-100"
-                    onClick={() => handleOpenModal(date, predictedPrice, actualPrice)}
-                  >
-                    <MoreVertical className="h-5 w-5 text-gray-500" />
-                  </button>
-                </TableCell>
-              </TableRow>
-            );
-          })}
+              {/* Ancillaries Column */}
+              <TableCell>
+                <ul className="list-disc list-inside text-gray-700 text-sm">
+                  {data.selected_ancillaries.length > 0 ? (
+                    data.selected_ancillaries.map((item, idx) => <li key={idx}>{item}</li>)
+                  ) : (
+                    <li>No additional ancillaries</li>
+                  )}
+                </ul>
+              </TableCell>
+
+              <TableCell className="text-right">
+                <button className="p-2 rounded-md hover:bg-gray-100" onClick={() => handleOpenModal(index)}>
+                  <MoreVertical className="h-5 w-5 text-gray-500" />
+                </button>
+              </TableCell>
+            </TableRow>
+          ))}
         </TableBody>
       </Table>
 
+
       {/* Modal for Price Adjustment */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="p-6 rounded-lg shadow-xl max-w-md">
+        <DialogContent className="p-6 rounded-2xl shadow-2xl sm:max-w-xl md:max-w-2xl lg:max-w-3xl border border-gray-200 bg-white">
           {/* Header */}
-          <DialogHeader className="text-center">
-            <DialogTitle className="text-xl font-semibold flex items-center gap-2 justify-center">
-              <Info className="h-6 w-6 text-blue-500" /> Adjust Pricing
+          <DialogHeader className="text-center border-b pb-4">
+            <DialogTitle className="text-xl font-semibold flex items-center gap-2 justify-center text-gray-900">
+              <Info className="h-6 w-6 text-red-600" /> Adjust Pricing
             </DialogTitle>
           </DialogHeader>
 
-          {/* Reason for Predicted Pricing */}
-          <div className="bg-gray-100 p-3 rounded-md">
-            <p className="text-md font-semibold">
-              {getMockPredictionReason(selectedDate!, roomType)}
-            </p>
+          {/* Pricing Insights */}
+          <div className="bg-gray-100 p-4 rounded-lg mt-3 border border-gray-300">
+            <ul className="list-disc list-inside text-base text-gray-700 space-y-2">
+              {pricingData[currentIndex]?.description.map((point, index) => (
+                <li key={index}>{point}</li>
+              ))}
+            </ul>
           </div>
 
           {/* Pricing Information */}
-          <div className="bg-white p-3 rounded-md border mt-3">
-            <p><strong>Date:</strong> {format(selectedDate!, "MMM dd, yyyy")}</p>
-            <p><strong>Predicted Price:</strong> ${selectedPredictedPrice}</p>
-            <p><strong>Current Price:</strong> ${selectedCurrentPrice}</p>
+          <div className="bg-white p-4 rounded-lg border mt-3 text-base text-gray-900 shadow-sm">
+            <p>
+              <strong>Date:</strong>{" "}
+              {pricingData[currentIndex]?.date
+                ? format(new Date(pricingData[currentIndex]?.date), "MMM dd, yyyy")
+                : "N/A"}
+            </p>
+            <p><strong>Current Price:</strong> ₹{pricingData[currentIndex]?.current_price}</p>
+            <p><strong>Optimized Price:</strong> ₹{pricingData[currentIndex]?.optimized_price}</p>
+          </div>
+
+          {/* Pricing Logic */}
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mt-3 text-base">
+            <p className="text-gray-800 font-semibold">Pricing Logic:</p>
+            <ul className="list-disc list-inside text-gray-700 space-y-2">
+              {Array.isArray(pricingData[currentIndex]?.logic)
+                ? pricingData[currentIndex]?.logic.map((step, index) => (
+                  <li key={index}>{step}</li>
+                ))
+                : pricingData[currentIndex]?.logic?.split("\n").map((step, index) => (
+                  <li key={index}>{step.trim()}</li>
+                )) || <li>No logic available</li>}
+            </ul>
           </div>
 
           {/* Action Buttons */}
-          <div className="grid gap-3 mt-5">
-            <Button className="w-full bg-green-500 text-white" onClick={handleAcceptPrice}>
-              ✅ Accept Predicted Pricing
-            </Button>
+          <div className="mt-4 space-y-3">
+            {/* Accept & Reject Buttons in one row */}
+            <div className="flex gap-3">
+              <Button
+                className="flex-1 border border-green-600 bg-green-50 hover:bg-green-100 text-green-800 font-semibold py-2 rounded-lg shadow-md transition-all duration-200 "
+                onClick={() => {
+                  console.log("Accepted", pricingData[currentIndex]?.optimized_price);
+                  setModalOpen(false);
+                }}
+              >
+                Accept Price
+              </Button>
 
-            <Button className="w-full border border-red-500 text-red-500" variant="outline" onClick={handleRejectPrice}>
-              ❌ Reject Pricing
-            </Button>
+              <Button
+                className="flex-1 border border-red-600 bg-red-50 hover:bg-red-100 text-red-800 font-semibold py-2 rounded-lg shadow-md transition-all duration-200 "
+                onClick={() => {
+                  console.log("Rejected");
+                  setModalOpen(false);
+                }}
+              >
+                Reject Price
+              </Button>
+            </div>
 
+            {/* Custom Pricing Input & Set Button */}
             <div className="flex items-center gap-2">
               <Input
                 type="number"
                 placeholder="Enter custom price"
                 value={customPrice}
                 onChange={(e) => setCustomPrice(e.target.value)}
-                className="flex-1 border border-gray-300 p-3 rounded-lg"
+                className="flex-1 border border-blue-500 focus:border-blue-700 p-2 rounded-lg text-base transition-all duration-200 ease-in-out"
               />
-              <Button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg" onClick={handleCustomPrice}>
-                ✏️ Set
+              <Button
+                className="border border-blue-600 bg-blue-50 hover:bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow-md transition-all duration-200 "
+                onClick={() => {
+                  console.log("Custom Price Set:", customPrice);
+                  setModalOpen(false);
+                }}
+              >
+                Set Price
               </Button>
             </div>
           </div>
+
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
