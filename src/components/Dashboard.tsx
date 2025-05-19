@@ -18,12 +18,14 @@ import {
   Legend,
 } from "recharts";
 import { SabreNavbar } from "./Navbar";
+import { motion } from "framer-motion";
 
 // Default data for fallback in case of API failure
 const defaultDashboardData = {
   total_revenue: 500000,
   predicted_revenue: 575000,
   additional_revenue: 75000,
+
   revenue_comparison: [
     { month: "Jan", actualRevenue: 45000, predictedRevenue: 52000 },
     { month: "Feb", actualRevenue: 42000, predictedRevenue: 51000 },
@@ -31,6 +33,7 @@ const defaultDashboardData = {
     { month: "Apr", actualRevenue: 47000, predictedRevenue: 54000 },
     { month: "May", actualRevenue: 49000, predictedRevenue: 55000 },
   ],
+
   occupancy_trends: [
     { month: "Jan", occupancyRate: 78 },
     { month: "Feb", occupancyRate: 81 },
@@ -38,13 +41,42 @@ const defaultDashboardData = {
     { month: "Apr", occupancyRate: 79 },
     { month: "May", occupancyRate: 83 },
   ],
+
   seasonal_demand: [
     { season: "Winter", demand: 30 },
     { season: "Spring", demand: 50 },
     { season: "Summer", demand: 90 },
     { season: "Autumn", demand: 60 },
   ],
+
+  competitor_vs_my_hotel: [
+    { month: "Jan", myHotel: 17000, marketAvg: 17250 },
+    { month: "Feb", myHotel: 16800, marketAvg: 17050 },
+    { month: "Mar", myHotel: 17200, marketAvg: 17300 },
+    { month: "Apr", myHotel: 17500, marketAvg: 17800 },
+    { month: "May", myHotel: 17400, marketAvg: 17650 },
+  ],
+
+  cancellation_trends: [
+    { month: "Jan", cancellations: 12, noShows: 5 },
+    { month: "Feb", cancellations: 15, noShows: 7 },
+    { month: "Mar", cancellations: 10, noShows: 4 },
+    { month: "Apr", cancellations: 13, noShows: 6 },
+    { month: "May", cancellations: 9, noShows: 3 },
+  ],
+
+  avg_daily_rate: 17000,
+  competitor_avg_price: 17250,
+
+  revpar_trends: [
+    { month: "Jan", revpar: 13500 },
+    { month: "Feb", revpar: 14000 },
+    { month: "Mar", revpar: 14500 },
+    { month: "Apr", revpar: 13800 },
+    { month: "May", revpar: 14200 },
+  ],
 };
+
 
 export function Dashboard() {
   const [dashboardData, setDashboardData] = useState(defaultDashboardData);
@@ -91,6 +123,7 @@ export function Dashboard() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
           </div>
 
           {/* Additional Revenue */}
@@ -104,7 +137,7 @@ export function Dashboard() {
               </div>
             </CardContent>
           </Card>
-          
+
           {/* Occupancy Trends */}
           <Card className="shadow-lg border-gray-300">
             <CardHeader className="bg-gray-100 border-b">
@@ -119,6 +152,44 @@ export function Dashboard() {
                   <Legend />
                   <Line type="monotone" dataKey="occupancyRate" stroke="#4f46e5" />
                 </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border-gray-300">
+            <CardHeader className="bg-gray-100 border-b">
+              <CardTitle>Similar Hotels vs. My Hotel Pricing</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dashboardData.competitor_vs_my_hotel}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" stroke="#374151" />
+                  <YAxis stroke="#374151" />
+                  <Tooltip formatter={(value) => [`₹${value}`, "Price"]} />
+                  <Legend />
+                  <Line type="monotone" dataKey="myHotel" stroke="#E53935" name="My Hotel Price" />
+                  <Line type="monotone" dataKey="marketAvg" stroke="#4B5563" name="Market Avg Price" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border-gray-300">
+            <CardHeader className="bg-gray-100 border-b">
+              <CardTitle>Cancellations & No-Shows</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={dashboardData.cancellation_trends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" stroke="#374151" />
+                  <YAxis stroke="#374151" />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="cancellations" fill="#E53935" name="Cancellations" />
+                  <Bar dataKey="noShows" fill="#4B5563" name="No-Shows" />
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -152,6 +223,45 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
+          <Card className="shadow-lg border-gray-300">
+            <CardHeader className="bg-gray-100 border-b">
+              <CardTitle>ADR: My Hotel vs Market</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart
+                  data={[
+                    { category: "My Hotel", price: dashboardData.avg_daily_rate },
+                    { category: "Market Avg", price: dashboardData.competitor_avg_price },
+                  ]}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="category" stroke="#374151" />
+                  <YAxis stroke="#374151" />
+                  <Tooltip formatter={(value) => [`₹${value}`, "ADR"]} />
+                  <Bar dataKey="price" fill="#4F5963" barSize={80} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border-gray-300">
+            <CardHeader className="bg-gray-100 border-b">
+              <CardTitle>RevPAR Trends</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dashboardData.revpar_trends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" stroke="#374151" />
+                  <YAxis stroke="#374151" />
+                  <Tooltip formatter={(value) => [`₹${value}`, "RevPAR"]} />
+                  <Legend />
+                  <Line type="monotone" dataKey="revpar" stroke="#E53935" name="RevPAR" />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
           {/* Revenue Breakdown */}
           <div className="md:col-span-2">

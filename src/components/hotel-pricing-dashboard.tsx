@@ -16,10 +16,10 @@ import { SabreNavbar } from "@/components/Navbar";
 export function HotelPricingDashboard() {
   const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(),
-    to: addDays(new Date(), 7),
+    to: addDays(new Date(), 4),
   });
 
-  const [roomType, setRoomType] = useState("The_Standard_Room");
+  const [roomType, setRoomType] = useState("The_Studio_Room");
 
   return (
     <div className="bg-gray-100 min-h-screen">
@@ -78,9 +78,17 @@ export function HotelPricingDashboard() {
                       <SelectValue placeholder="Select room type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="The_Standard_Room">The Standard Room</SelectItem>
                       <SelectItem value="The_Studio_Room">The Studio Room</SelectItem>
+                      <SelectItem value="The_Standard_Room">The Standard Room</SelectItem>
                       <SelectItem value="The_Corner_Room">The Corner Room</SelectItem>
+                      <SelectItem value="The_Superior_Room">The Superior Room</SelectItem>
+                      <SelectItem value="The_Deluxe_Room">The Deluxe Room</SelectItem>
+                      <SelectItem value="The_Executive_Room">The Executive Room</SelectItem>
+                      <SelectItem value="The_Premium_Suite">The Premium Suite</SelectItem>
+                      <SelectItem value="The_Luxury_Suite">The Luxury Suite</SelectItem>
+                      <SelectItem value="The_Presidential_Suite">The Presidential Suite</SelectItem>
+                      <SelectItem value="The_Terrace_Suite">The Terrace Suite</SelectItem>
+                      <SelectItem value="The_Taj_Club_Room">The Taj Club Room</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
